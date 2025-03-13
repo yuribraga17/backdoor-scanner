@@ -38,7 +38,8 @@ A powerful scanner to detect possible backdoors in FiveM server scripts.
 - If a backdoor is detected, a message is sent to Discord.
 
 ## 📜 Author
-
+- **Yuri Braga**  
+  [GitHub](https://github.com/yuribraga17)  
 ---
 
 # Backdoor Scanner 🔍
@@ -84,9 +85,4 @@ Um scanner poderoso para detectar possíveis backdoors em scripts de servidores 
 
 - **Yuri Braga**  
   [GitHub](https://github.com/yuribraga17)  
-  ![Avatar](https://i.imgur.com/Io94kCm.jpeg)
-
-- **Yuri Braga**  
-  [GitHub](https://github.com/yuribraga17)  
-  ![Avatar](https://i.imgur.com/Io94kCm.jpeg)
 
