@@ -31,18 +31,37 @@ PATTERNS = [
     r"1ox\.org",
     r"ls2\.org",
     r"http:\/\/l00x\.org",
-    r"warden-panel\.me"
+    r"warden-panel\.me",
+    r"fetch\s*\(",
+    r"SendNUIMessage\s*\(",
+    r"SetResourceKvp\s*\(",
+    r"GetResourceKvp\s*\(",
+    r"os\.execute\s*\(",
+    r"io\.popen\s*\(",
+    r"loadstring\s*\(",
+    r"debug\.setmetatable\s*\(",
+    r"string\.reverse\s*\(",
+    r"load\s*\(",
+    r"require\(\s*[\"'`]crypto[\"'`]\s*\)",
 ]
 
 # Exceções para evitar falsos positivos
 EXCEPTIONS = [
     r"https:\/\/github\.com\/citizenfx\/cfx-server-data",
-    r"document\.createElementNS\(\"http:\/\/www\.w3\.org\/2000\/svg\",", 
+    r"document\.createElementNS\(\"http:\/\/www\.w3\.org\/2000\/svg\",",
     r"cfx-default",
     r"\.png$",
     r"\.svg$",
     r"font-src",
-    r"github\.com\/citizenfx"
+    r"github\.com\/citizenfx",
+    r"GetCurrentResourceName\s*\(",
+    r"SendNUIMessage\s*\(",
+    r"json\.decode\s*\(",
+    r"os\.clock\s*\(",
+    r"ox_",
+    r"qbx_",
+    r"qb_",
+    r"esx_",
 ]
 
 def scan_files(directory):
