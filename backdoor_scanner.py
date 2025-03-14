@@ -3,16 +3,27 @@ import re
 import json
 import hashlib
 import requests
+import smtplib
+import sqlite3
+import time
+import tkinter as tk
+from tkinter import filedialog, messagebox
 from concurrent.futures import ThreadPoolExecutor
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+from email.mime.text import MIMEText
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.ensemble import RandomForestClassifier
 
 # Configurações
 LOG_FILE = "malware_log.txt"
 ERROR_LOG = "error_log.txt"
 SCAN_EXTENSIONS = [".lua", ".js", ".json", ".cfg", ".sql", ".txt"]
-DISCORD_WEBHOOK = "WEBHOOK_LINK"
+DISCORD_WEBHOOK = "WEBHOOK_LINK"  # Substitua pelo seu webhook do Discord
 AUTHOR = "Yuri Braga"
 GITHUB_PROFILE = "https://github.com/yuribraga17"
 AVATAR_URL = "https://i.imgur.com/Io94kCm.jpeg"
+VIRUSTOTAL_API_KEY = "SUA_CHAVE_API_VIRUSTOTAL"  # Obtenha uma chave em https://www.virustotal.com/
 
 # Lista de hashes maliciosos conhecidos (exemplo)
 MALICIOUS_HASHES = {
@@ -20,98 +31,174 @@ MALICIOUS_HASHES = {
     "d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2"
 }
 
-# Padrões suspeitos
-PATTERNS = [
-    r"PerformHttpRequest\s*\(\s*[\"'`](https?:\/\/[^\s\"'`]+)[\"'`]",
-    r"task\s*\(\s*[\"'`](https?:\/\/[^\s\"'`]+)[\"'`]",
-    r"assert\s*\(\s*load\s*\(",
-    r"pcall\s*\(",
-    r"RunString\s*\(",
-    r"Citizen\.InvokeNative\s*\(",
-    r"LoadResourceFile\s*\(",
-    r"RegisterServerEvent\s*\(",
-    r"ExecuteCommand\s*\(",
-    r"require\(\s*[\"'`]socket[\"'`]\s*\)",
-    r"GetPlayerIdentifiers\s*\(",
-    r"base64\.decode\s*\(",
-    r"Buffer\.from\s*\(",
-    r"pastebin\.com\/raw",
-    r"1ox\.org",
-    r"ls2\.org",
-    r"http:\/\/l00x\.org",
-    r"warden-panel\.me",
-    r"fetch\s*\(",
-    r"SendNUIMessage\s*\(",
-    r"SetResourceKvp\s*\(",
-    r"GetResourceKvp\s*\(",
-    r"os\.execute\s*\(",
-    r"io\.popen\s*\(",
-    r"loadstring\s*\(",
-    r"debug\.setmetatable\s*\(",
-    r"string\.reverse\s*\(",
-    r"load\s*\(",
-    r"require\(\s*[\"'`]crypto[\"'`]\s*\)",
-]
+# Dicionários de localização
+LOCALIZATION = {
+    "pt-br": {
+        "title": "Backdoor Scanner",
+        "select_directory": "Selecionar Diretório",
+        "scanning": "Escaneando...",
+        "malware_found": "🚨 Backdoor encontrado! Verifique 'malware_log.txt' para detalhes.",
+        "no_malware": "✅ Nenhum malware encontrado.",
+        "error_directory": "Diretório não encontrado.",
+        "error_webhook": "Webhook do Discord inválido ou não configurado.",
+        "alert": "ALERTA",
+        "error": "ERRO",
+        "file_modified": "Arquivo modificado:",
+        "monitoring": "Monitorando diretório:",
+        "backup_created": "Backup criado:",
+        "email_sent": "E-mail enviado com sucesso.",
+        "hash_malicious": "Hash malicioso detectado:",
+        "obfuscation_detected": "Ofuscação detectada:",
+        "suspicious_behavior": "Comportamento suspeito detectado:",
+        "suspicious_pattern": "Padrão suspeito encontrado:",
+        "file": "Arquivo",
+        "line": "Linha",
+        "code": "Código suspeito",
+        "pattern": "Padrão Detectado",
+        "footer": f"Autor: {AUTHOR} | Github: {GITHUB_PROFILE}",
+    },
+    "en": {
+        "title": "Backdoor Scanner",
+        "select_directory": "Select Directory",
+        "scanning": "Scanning...",
+        "malware_found": "🚨 Backdoor found! Check 'malware_log.txt' for details.",
+        "no_malware": "✅ No malware found.",
+        "error_directory": "Directory not found.",
+        "error_webhook": "Invalid or unconfigured Discord webhook.",
+        "alert": "ALERT",
+        "error": "ERROR",
+        "file_modified": "File modified:",
+        "monitoring": "Monitoring directory:",
+        "backup_created": "Backup created:",
+        "email_sent": "Email sent successfully.",
+        "hash_malicious": "Malicious hash detected:",
+        "obfuscation_detected": "Obfuscation detected:",
+        "suspicious_behavior": "Suspicious behavior detected:",
+        "suspicious_pattern": "Suspicious pattern found:",
+        "file": "File",
+        "line": "Line",
+        "code": "Suspicious Code",
+        "pattern": "Pattern Detected",
+        "footer": f"Author: {AUTHOR} | Github: {GITHUB_PROFILE}",
+    }
+}
 
-# Exceções para evitar falsos positivos
-EXCEPTIONS = [
-    r"https:\/\/github\.com\/citizenfx\/cfx-server-data",
-    r"document\.createElementNS\(\"http:\/\/www\.w3\.org\/2000\/svg\",",
-    r"cfx-default",
-    r"\.png$",
-    r"\.svg$",
-    r"font-src",
-    r"github\.com\/citizenfx",
-    r"GetCurrentResourceName\s*\(",
-    r"SendNUIMessage\s*\(",
-    r"json\.decode\s*\(",
-    r"os\.clock\s*\(",
-    r"ox_",
-    r"qbx_",
-    r"qb_",
-    r"esx_",
-]
+# Idioma padrão
+LANGUAGE = "pt-br"
 
-def calculate_file_hash(file_path):
-    """Calcula o hash SHA-256 de um arquivo."""
-    sha256_hash = hashlib.sha256()
-    with open(file_path, "rb") as f:
-        for byte_block in iter(lambda: f.read(4096), b""):
-            sha256_hash.update(byte_block)
-    return sha256_hash.hexdigest()
+def translate(key):
+    """Retorna a mensagem traduzida com base no idioma selecionado."""
+    return LOCALIZATION[LANGUAGE].get(key, key)
 
-def check_file_hash(file_path):
-    """Verifica se o hash do arquivo está na lista de hashes maliciosos."""
-    file_hash = calculate_file_hash(file_path)
-    if file_hash in MALICIOUS_HASHES:
-        return f"[ALERTA] Hash malicioso encontrado: {file_hash} no arquivo {file_path}"
+# Modelo de machine learning
+def train_model():
+    """Treina um modelo simples para classificar código."""
+    texts = ["malicious code", "safe code", "another malicious example"]
+    labels = [1, 0, 1]  # 1 = malicioso, 0 = seguro
+    vectorizer = TfidfVectorizer()
+    X = vectorizer.fit_transform(texts)
+    model = RandomForestClassifier()
+    model.fit(X, labels)
+    return model, vectorizer
+
+def predict_code(model, vectorizer, code):
+    """Classifica o código como malicioso ou seguro."""
+    X = vectorizer.transform([code])
+    return model.predict(X)[0]
+
+# Verificação de hash com VirusTotal
+def check_hash_with_virustotal(file_hash):
+    """Verifica um hash com a API do VirusTotal."""
+    url = f"https://www.virustotal.com/api/v3/files/{file_hash}"
+    headers = {"x-apikey": VIRUSTOTAL_API_KEY}
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            result = response.json()
+            if result["data"]["attributes"]["last_analysis_stats"]["malicious"] > 0:
+                return f"[{translate('alert')}] {translate('hash_malicious')} {file_hash}"
+    except Exception as e:
+        return f"[{translate('error')}] Falha ao verificar hash: {e}"
     return None
 
-def detect_obfuscation(content):
-    """Detecta técnicas comuns de ofuscação."""
-    obfuscation_patterns = [
-        r"base64\.decode\s*\(",
-        r"fromCharCode\s*\(",
-        r"string\.reverse\s*\(",
-        r"\\x[0-9a-fA-F]{2}",  # Caracteres hexadecimais
-        r"eval\s*\(",
-    ]
-    for pattern in obfuscation_patterns:
-        if re.search(pattern, content):
-            return f"[ALERTA] Ofuscação detectada: {pattern}"
-    return None
+# Monitoramento em tempo real
+class FileChangeHandler(FileSystemEventHandler):
+    """Monitora alterações no sistema de arquivos."""
+    def on_modified(self, event):
+        if not event.is_directory:
+            print(f"[{translate('alert')}] {translate('file_modified')} {event.src_path}")
+            scan_file(event.src_path)
 
-def analyze_behavior(content):
-    """Analisa o comportamento do código."""
-    suspicious_sequences = [
-        (r"PerformHttpRequest\s*\(", r"ExecuteCommand\s*\("),
-        (r"LoadResourceFile\s*\(", r"RunString\s*\("),
-    ]
-    for seq in suspicious_sequences:
-        if re.search(seq[0], content) and re.search(seq[1], content):
-            return f"[ALERTA] Comportamento suspeito detectado: {seq[0]} seguido de {seq[1]}"
-    return None
+def start_monitoring(directory):
+    """Inicia o monitoramento de um diretório."""
+    event_handler = FileChangeHandler()
+    observer = Observer()
+    observer.schedule(event_handler, path=directory, recursive=True)
+    observer.start()
+    print(f"[INFO] {translate('monitoring')} {directory}")
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        observer.stop()
+    observer.join()
 
+# Backup e restauração
+def create_backup(file_path):
+    """Cria um backup do arquivo."""
+    backup_dir = "backups"
+    if not os.path.exists(backup_dir):
+        os.makedirs(backup_dir)
+    timestamp = time.strftime("%Y%m%d%H%M%S")
+    backup_file = os.path.join(backup_dir, f"{os.path.basename(file_path)}_{timestamp}")
+    shutil.copy(file_path, backup_file)
+    print(f"[INFO] {translate('backup_created')} {backup_file}")
+    return backup_file
+
+# Notificações por e-mail
+def send_email(subject, body):
+    """Envia um e-mail de notificação."""
+    sender = "seu_email@gmail.com"
+    receiver = "destinatario@gmail.com"
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = sender
+    msg["To"] = receiver
+
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        server.starttls()
+        server.login(sender, "sua_senha")
+        server.sendmail(sender, receiver, msg.as_string())
+    print(f"[INFO] {translate('email_sent')}")
+
+# Banco de dados de resultados
+def create_database():
+    """Cria um banco de dados para armazenar resultados."""
+    conn = sqlite3.connect("scan_results.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS results (
+            id INTEGER PRIMARY KEY,
+            file_path TEXT,
+            pattern TEXT,
+            timestamp DATETIME
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def save_result(file_path, pattern):
+    """Salva um resultado no banco de dados."""
+    conn = sqlite3.connect("scan_results.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO results (file_path, pattern, timestamp)
+        VALUES (?, ?, datetime('now'))
+    """, (file_path, pattern))
+    conn.commit()
+    conn.close()
+
+# Função principal de escaneamento
 def scan_file(file_path):
     """Escaneia um arquivo em busca de padrões suspeitos."""
     log_entries = []
@@ -120,9 +207,14 @@ def scan_file(file_path):
             content = f.read()
             
             # Verificação de hash
-            hash_result = check_file_hash(file_path)
-            if hash_result:
-                log_entries.append(hash_result)
+            file_hash = hashlib.sha256(content.encode()).hexdigest()
+            if file_hash in MALICIOUS_HASHES:
+                log_entries.append(f"[{translate('alert')}] {translate('hash_malicious')} {file_hash} {translate('file')} {file_path}")
+            
+            # Verificação com VirusTotal
+            virustotal_result = check_hash_with_virustotal(file_hash)
+            if virustotal_result:
+                log_entries.append(virustotal_result)
             
             # Detecção de ofuscação
             obfuscation_result = detect_obfuscation(content)
@@ -141,107 +233,28 @@ def scan_file(file_path):
                     line = content.splitlines()[content[:match.start()].count('\n')]
                     if not any(re.search(exc, line) for exc in EXCEPTIONS):
                         log_entry = (
-                            f"[ALERTA] Padrão suspeito encontrado: {pattern}\n"
-                            f"Arquivo: {file_path}\n"
-                            f"Linha: {content[:match.start()].count('\n') + 1}\n"
-                            f"Código suspeito: {line.strip()}\n"
+                            f"[{translate('alert')}] {translate('suspicious_pattern')}: {pattern}\n"
+                            f"{translate('file')}: {file_path}\n"
+                            f"{translate('line')}: {content[:match.start()].count('\n') + 1}\n"
+                            f"{translate('code')}: {line.strip()}\n"
                         )
                         log_entries.append(log_entry)
+                        save_result(file_path, pattern)
                         send_to_discord(file_path, line, pattern)
     except Exception as e:
-        return f"[ERRO] Falha ao ler o arquivo {file_path}: {e}"
+        return f"[{translate('error')}] Falha ao ler o arquivo {file_path}: {e}"
     return log_entries
 
-def scan_files(directory):
-    """Escaneia os arquivos em busca de padrões suspeitos."""
-    malware_found = False
-    log_entries = []
-    error_entries = []
-
-    with ThreadPoolExecutor() as executor:
-        futures = []
-        for root, _, files in os.walk(directory):
-            if "cfx-default" in root:
-                continue
-            for file in files:
-                if any(file.endswith(ext) for ext in SCAN_EXTENSIONS):
-                    file_path = os.path.join(root, file)
-                    futures.append(executor.submit(scan_file, file_path))
-
-        for future in futures:
-            result = future.result()
-            if isinstance(result, list):
-                log_entries.extend(result)
-                if result:
-                    malware_found = True
-            else:
-                error_entries.append(result)
-
-    # Salva os logs
-    with open(LOG_FILE, "w", encoding="utf-8") as log:
-        log.write("[MalScanner] Iniciando varredura de backdoors...\n")
-        log.write("------------------------------------\n")
-        log.write("\n".join(log_entries))
-        log.write("\n------------------------------------\n")
-        log.write(f"[MalScanner] Varredura concluída.\n\nAutor: {AUTHOR}\nGithub: {GITHUB_PROFILE}\n")
-
-    if error_entries:
-        with open(ERROR_LOG, "w", encoding="utf-8") as error_log:
-            error_log.write("[ERROS] Ocorreram erros durante a varredura:\n")
-            error_log.write("\n".join(error_entries))
-
-    return malware_found
-
-def send_to_discord(file_path, line, pattern):
-    """Envia uma notificação para o Discord via Webhook."""
-    payload = {
-        "username": "Backdoor Scanner",
-        "avatar_url": AVATAR_URL,
-        "embeds": [
-            {
-                "title": "🚨 POSSÍVEL BACKDOOR DETECTADO! 🚨",
-                "color": 16711680,
-                "fields": [
-                    {"name": "Arquivo", "value": file_path, "inline": False},
-                    {"name": "Código suspeito", "value": f"```{line.strip()}```", "inline": False},
-                    {"name": "Padrão Detectado", "value": pattern, "inline": False}
-                ],
-                "footer": {
-                    "text": f"Autor: {AUTHOR} | Github: {GITHUB_PROFILE}",
-                    "icon_url": AVATAR_URL
-                }
-            }
-        ]
-    }
-    try:
-        requests.post(DISCORD_WEBHOOK, json=payload)
-    except Exception as e:
-        print(f"[ERRO] Falha ao enviar notificação para o Discord: {e}")
-
+# Função principal
 def main():
-    # Validação do diretório
-    current_directory = os.getcwd()
-    if not os.path.exists(current_directory):
-        print(f"[ERRO] Diretório não encontrado: {current_directory}")
-        return
-
-    print(f"[INFO] Escaneando o diretório: {current_directory}")
-
-    # Validação do webhook do Discord
-    if not DISCORD_WEBHOOK or not DISCORD_WEBHOOK.startswith("https://discord.com/api/webhooks/"):
-        print("[ERRO] Webhook do Discord inválido ou não configurado.")
-        return
-
-    print("[INFO] Iniciando varredura de backdoors...")
-    malware_found = scan_files(current_directory)
-
-    if malware_found:
-        print("[ALERTA] 🚨 Backdoor encontrado! Verifique 'malware_log.txt' para detalhes.")
-    else:
-        print("[SEGURO] ✅ Nenhum malware encontrado.")
-
-    print(f"[INFO] Verifique os arquivos de log: {LOG_FILE} e {ERROR_LOG}")
-    print(f"[INFO] Script desenvolvido por {AUTHOR} | Github: {GITHUB_PROFILE}")
+    create_database()
+    model, vectorizer = train_model()
+    
+    # Interface gráfica
+    root = tk.Tk()
+    root.title(translate("title"))
+    tk.Button(root, text=translate("select_directory"), command=lambda: start_monitoring(filedialog.askdirectory())).pack()
+    root.mainloop()
 
 if __name__ == "__main__":
     main()
