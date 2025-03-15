@@ -4,9 +4,6 @@ import pandas as pd
 import os
 
 def generate_html_report(log_entries, error_entries, malware_found, author, github_profile):
-    """
-    Gera um relatório HTML interativo com gráficos e filtros.
-    """
     try:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
