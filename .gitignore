@@ -8,3 +8,6 @@ scan_results.db
 error_log.html
 *.db
 *.html
+*.pyc
+/reports/__pycache__
+/core/__pycache__

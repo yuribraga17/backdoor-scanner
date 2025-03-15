@@ -14,7 +14,12 @@ def generate_html_report(log_entries, error_entries, malware_found, author, gith
             log_entries = [("Nenhum log disponível.", "", "", "")]
 
         # Cria um DataFrame para os logs
-        df = pd.DataFrame(log_entries, columns=["Message", "File", "Line", "Code"])
+        try:
+            df = pd.DataFrame(log_entries, columns=["Message", "File", "Line", "Code"])
+        except ValueError as e:
+            print(f"Erro ao criar DataFrame: {e}")
+            print(f"Dados recebidos: {log_entries}")
+            return
 
         # Gera um gráfico de barras com Plotly (se houver dados válidos)
         graph_html = ""
@@ -85,10 +90,14 @@ def generate_html_report(log_entries, error_entries, malware_found, author, gith
         """
 
         # Salva o relatório HTML
-        with open("scan_report.html", "w", encoding="utf-8") as log:
+        report_path = os.path.abspath("scan_report.html")
+        print(f"Gerando relatório em: {report_path}")
+        with open(report_path, "w", encoding="utf-8") as log:
             log.write(html_content)
 
     except Exception as e:
         # Log de erro em caso de falha na geração do relatório
+        error_message = f"[{timestamp}] ERROR: Falha ao gerar relatório HTML: {str(e)}"
+        print(error_message)
         with open("error_log.html", "a", encoding="utf-8") as error_log:
-            error_log.write(f"[{timestamp}] ERROR: Falha ao gerar relatório HTML: {str(e)}\n")
+            error_log.write(error_message + "\n")
