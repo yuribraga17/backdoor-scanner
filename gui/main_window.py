@@ -109,4 +109,4 @@ def create_gui():
     exit_button = tk.Button(button_frame, text="Sair", command=root.quit)
     exit_button.pack(side=tk.LEFT, padx=5)
 
-    root.mainloop()e
+    root.mainloop()
