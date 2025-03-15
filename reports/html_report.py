@@ -1,6 +1,7 @@
 from datetime import datetime
 import plotly.express as px
 import pandas as pd
+import os
 
 def generate_html_report(log_entries, error_entries, malware_found, author, github_profile):
     """
@@ -13,13 +14,16 @@ def generate_html_report(log_entries, error_entries, malware_found, author, gith
         if not log_entries:
             log_entries = [("Nenhum log disponível.", "", "", "")]
 
+        # Filtra entradas mal formatadas
+        filtered_entries = []
+        for entry in log_entries:
+            if isinstance(entry, (list, tuple)) and len(entry) == 4:
+                filtered_entries.append(entry)
+            else:
+                print(f"Entrada mal formatada removida: {entry}")  # Depuração
+
         # Cria um DataFrame para os logs
-        try:
-            df = pd.DataFrame(log_entries, columns=["Message", "File", "Line", "Code"])
-        except ValueError as e:
-            print(f"Erro ao criar DataFrame: {e}")
-            print(f"Dados recebidos: {log_entries}")
-            return
+        df = pd.DataFrame(filtered_entries, columns=["Message", "File", "Line", "Code"])
 
         # Gera um gráfico de barras com Plotly (se houver dados válidos)
         graph_html = ""
@@ -51,7 +55,7 @@ def generate_html_report(log_entries, error_entries, malware_found, author, gith
             {graph_html}
             <h2>Logs</h2>
         """
-        for entry in log_entries:
+        for entry in filtered_entries:
             try:
                 message, file, line, code = entry
                 html_content += f"""
