@@ -27,15 +27,15 @@ def scan_file(file_path, patterns, malicious_hashes, virustotal_api_key):
     try:
         # Verifica se o arquivo existe
         if not os.path.exists(file_path):
-            return [f"[{translate('error')}] Arquivo não encontrado: {file_path}"]
+            return [(f"[{translate('error')}] Arquivo não encontrado: {file_path}", file_path, None, None)]
 
         # Verifica permissões de leitura
         if not os.access(file_path, os.R_OK):
-            return [f"[{translate('error')}] Permissão negada para ler o arquivo: {file_path}"]
+            return [(f"[{translate('error')}] Permissão negada para ler o arquivo: {file_path}", file_path, None, None)]
 
         # Verifica se o arquivo está vazio
         if os.path.getsize(file_path) == 0:
-            return [f"[{translate('warning')}] Arquivo vazio: {file_path}"]
+            return [(f"[{translate('warning')}] Arquivo vazio: {file_path}", file_path, None, None)]
 
         # Lê o conteúdo do arquivo
         with open(file_path, "rb") as f:
@@ -90,9 +90,9 @@ def scan_file(file_path, patterns, malicious_hashes, virustotal_api_key):
     except PermissionError as e:
         error_message = f"[{translate('error')}] Permissão negada ao acessar o arquivo {file_path}: {str(e)}"
         log_error(error_message, author=DISCORD_AUTHOR, github_profile=DISCORD_GITHUB_PROFILE)
-        return [error_message]
+        return [(error_message, file_path, None, None)]
     except Exception as e:
         error_message = f"[{translate('error')}] Falha ao processar o arquivo {file_path}: {str(e)}"
         log_error(error_message, author=DISCORD_AUTHOR, github_profile=DISCORD_GITHUB_PROFILE)
-        return [error_message]
+        return [(error_message, file_path, None, None)]
     return log_entries
