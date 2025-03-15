@@ -51,7 +51,7 @@ def create_gui():
                 for result in results:
                     if isinstance(result, list):
                         log_entries.extend(result)
-                        if any("ALERT" in entry for entry in result):
+                        if any("ALERT" in entry[0] for entry in result):
                             malware_found = True
                     else:
                         error_entries.append(result)
