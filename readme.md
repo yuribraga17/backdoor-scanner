@@ -4,20 +4,20 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/yuribraga17/backdoor-scanner?style=social)](https://github.com/yuribraga17/backdoor-scanner/stargazers)
 
-A powerful and intelligent scanner to detect potential backdoors in FiveM server scripts. Designed for server administrators and developers who value security and efficiency.
+Backdoor Scanner is a powerful security tool designed to detect potential backdoors in FiveM server scripts. It is built for server administrators and developers who prioritize security and efficiency.
 
 ---
 
 ## 🌟 Features
 
-- **🚀 Advanced Scanning**: Detects suspicious patterns with minimal false positives.
-- **📜 Detailed Logging**: Logs include file name, line number, and suspicious code snippets.
-- **🌐 Discord Alerts**: Sends automatic notifications to a Discord Webhook with full details.
-- **🔥 Smart Filtering**: Ignores trusted files like PNG, SVG, and CitizenFX assets.
-- **👤 Author & Credits**: Personalized signature with name, GitHub, and avatar in Discord Webhook.
+- **🚀 Advanced Detection**: Identifies suspicious patterns with minimal false positives.
+- **📜 Detailed Reports**: Generates comprehensive logs with filenames, line numbers, and code snippets.
+- **🌐 Discord Alerts**: Sends instant notifications to a Discord Webhook with full details.
+- **🔥 Smart Filtering**: Ignores trusted files such as PNG, SVG, and CitizenFX assets.
+- **👤 Custom Branding**: Includes personalized author signature, GitHub link, and avatar in alerts.
 - **🔍 Multi-Language Support**: Available in English and Portuguese (Brazilian).
-- **⚡ Real-Time Monitoring**: Watches for file changes and alerts immediately.
-- **🔒 Security Checks**: Verifies file permissions and detects obfuscated code.
+- **⚡ Real-Time Monitoring**: Watches for file modifications and alerts immediately.
+- **🔒 Security Checks**: Detects obfuscated code and verifies file permissions.
 
 ---
 
@@ -35,7 +35,7 @@ A powerful and intelligent scanner to detect potential backdoors in FiveM server
    ```
 
 3. **Configure Discord Webhook** (Optional):
-   - Edit `backdoor_scanner.py` and replace `DISCORD_WEBHOOK` with your webhook URL.
+   - Edit `config.json` and set `DISCORD_WEBHOOK` to your webhook URL.
 
 4. **Run the Scanner**:
    ```bash
@@ -46,23 +46,24 @@ A powerful and intelligent scanner to detect potential backdoors in FiveM server
 
 ## 🛠️ How It Works
 
-- The scanner checks `.lua`, `.js`, `.json`, `.cfg`, `.sql`, and `.txt` files for suspicious patterns.
-- It uses advanced detection techniques to minimize false positives.
-- If a backdoor is detected, it logs the details and sends an alert to Discord.
-- Logs are saved in `malware_log.txt` and `error_log.txt`.
+- Scans `.lua`, `.js`, `.json`, `.cfg`, `.sql`, `.txt`, `.py`, `.php`, and `.html` files for suspicious patterns.
+- Uses a database of known malicious hashes and suspicious patterns to detect potential threats.
+- If a threat is detected, it logs the details and sends an alert to Discord.
+- Creates backups of flagged files in the `backups` directory.
+- Generates an interactive HTML report (`scan_report.html`) with scan results.
 
 ---
 
-## 📖 Examples of Use
+## 📖 Usage Examples
 
 ### Scanning a Directory
 ```bash
 python backdoor_scanner.py
 ```
-- A file dialog will open for you to select the directory to scan.
+- A file dialog will open for directory selection.
 
 ### Real-Time Monitoring
-- The scanner can monitor a directory for changes and alert you in real-time.
+- The scanner can watch a directory for changes and alert on suspicious modifications.
 
 ### Discord Alert Example
 ![Discord Alert Example](https://i.imgur.com/Io94kCm.jpeg)
@@ -71,18 +72,20 @@ python backdoor_scanner.py
 
 ## 🚧 Roadmap
 
-- [x] Add Discord Webhook integration.
-- [x] Implement real-time monitoring.
-- [x] Add multi-language support (English and Portuguese).
-- [ ] Integrate with VirusTotal API for hash verification.
-- [ ] Add a graphical user interface (GUI).
-- [ ] Support for more file types and languages.
+- [x] Discord Webhook integration
+- [x] Real-time monitoring
+- [x] Multi-language support (English and Portuguese)
+- [x] Backup of flagged files
+- [x] Interactive HTML reports
+- [ ] VirusTotal API integration for hash verification
+- [ ] Graphical User Interface (GUI)
+- [ ] Additional file type support
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Here's how you can help:
+Contributions are welcome! To contribute:
 
 1. **Fork the repository**.
 2. **Create a new branch**:
@@ -99,7 +102,7 @@ Contributions are welcome! Here's how you can help:
    ```
 5. **Open a pull request**.
 
-Please read the [CONTRIBUTING.md](CONTRIBUTING.md) file for more details.
+Read the [CONTRIBUTING.md](CONTRIBUTING.md) for more details.
 
 ---
 
@@ -119,20 +122,20 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 # Backdoor Scanner 🔍 (Versão em Português)
 
-Um scanner poderoso e inteligente para detectar possíveis backdoors em scripts de servidores FiveM. Projetado para administradores e desenvolvedores que valorizam segurança e eficiência.
+Um scanner poderoso para detectar possíveis backdoors em scripts de servidores FiveM. Ideal para administradores e desenvolvedores que priorizam segurança.
 
 ---
 
 ## 🌟 Recursos
 
-- **🚀 Varredura Avançada**: Detecta padrões suspeitos com mínimos falsos positivos.
-- **📜 Registro Detalhado**: Logs incluem nome do arquivo, número da linha e trechos de código suspeitos.
-- **🌐 Alertas no Discord**: Envia notificações automáticas para um Webhook do Discord com detalhes completos.
-- **🔥 Filtragem Inteligente**: Ignora arquivos confiáveis, como PNG, SVG e assets do CitizenFX.
-- **👤 Autor & Créditos**: Assinatura personalizada com nome, GitHub e avatar no Webhook do Discord.
-- **🔍 Suporte a Multi Idiomas**: Disponível em inglês e português (brasileiro).
-- **⚡ Monitoramento em Tempo Real**: Observa alterações em arquivos e alerta imediatamente.
-- **🔒 Verificações de Segurança**: Verifica permissões de arquivos e detecta código ofuscado.
+- **🚀 Detecção Avançada**: Identifica padrões suspeitos com poucos falsos positivos.
+- **📜 Relatórios Detalhados**: Gera logs completos com nome do arquivo, linha e código suspeito.
+- **🌐 Alertas no Discord**: Notificações automáticas via Webhook do Discord.
+- **🔥 Filtragem Inteligente**: Ignora arquivos confiáveis como PNG, SVG e assets do CitizenFX.
+- **👤 Personalização**: Inclui assinatura do autor, GitHub e avatar nas notificações.
+- **🔍 Suporte a Múltiplos Idiomas**: Disponível em inglês e português.
+- **⚡ Monitoramento em Tempo Real**: Observa alterações de arquivos e alerta imediatamente.
+- **🔒 Verificação de Segurança**: Detecta código ofuscado e verifica permissões.
 
 ---
 
@@ -150,7 +153,7 @@ Um scanner poderoso e inteligente para detectar possíveis backdoors em scripts 
    ```
 
 3. **Configure o Webhook do Discord** (Opcional):
-   - Edite o arquivo `backdoor_scanner.py` e substitua `DISCORD_WEBHOOK` pelo seu webhook.
+   - Edite o `config.json` e defina `DISCORD_WEBHOOK` com seu webhook.
 
 4. **Execute o Scanner**:
    ```bash
@@ -161,10 +164,11 @@ Um scanner poderoso e inteligente para detectar possíveis backdoors em scripts 
 
 ## 🛠️ Como Funciona
 
-- O scanner verifica arquivos `.lua`, `.js`, `.json`, `.cfg`, `.sql` e `.txt` em busca de padrões suspeitos.
-- Usa técnicas avançadas de detecção para minimizar falsos positivos.
-- Se um backdoor for detectado, ele registra os detalhes e envia um alerta para o Discord.
-- Logs são salvos nos arquivos `malware_log.txt` e `error_log.txt`.
+- Varre arquivos `.lua`, `.js`, `.json`, `.cfg`, `.sql`, `.txt`, `.py`, `.php`, e `.html` para padrões suspeitos.
+- Utiliza banco de dados de hashes maliciosos e padrões suspeitos.
+- Registra alertas no Discord e salva logs detalhados.
+- Cria backups de arquivos suspeitos na pasta `backups`.
+- Gera um relatório HTML interativo (`scan_report.html`).
 
 ---
 
@@ -174,10 +178,10 @@ Um scanner poderoso e inteligente para detectar possíveis backdoors em scripts 
 ```bash
 python backdoor_scanner.py
 ```
-- Uma janela será aberta para você selecionar o diretório a ser escaneado.
+- Uma janela abrirá para selecionar o diretório a ser escaneado.
 
 ### Monitoramento em Tempo Real
-- O scanner pode monitorar um diretório e alertar em tempo real sobre alterações.
+- O scanner pode monitorar alterações de arquivos e alertar em tempo real.
 
 ### Exemplo de Alerta no Discord
 ![Exemplo de Alerta no Discord](https://i.imgur.com/Io94kCm.jpeg)
@@ -186,35 +190,14 @@ python backdoor_scanner.py
 
 ## 🚧 Roadmap
 
-- [x] Adicionar integração com Webhook do Discord.
-- [x] Implementar monitoramento em tempo real.
-- [x] Adicionar suporte a multi idiomas (inglês e português).
-- [ ] Integrar com a API do VirusTotal para verificação de hashes.
-- [ ] Adicionar uma interface gráfica (GUI).
-- [ ] Suporte para mais tipos de arquivos e linguagens.
-
----
-
-## 🤝 Contribuindo
-
-Contribuições são bem-vindas! Aqui está como você pode ajudar:
-
-1. **Faça um fork do repositório**.
-2. **Crie uma nova branch**:
-   ```bash
-   git checkout -b feature/NomeDaSuaFeature
-   ```
-3. **Faça commit das suas alterações**:
-   ```bash
-   git commit -m "Adiciona alguma feature"
-   ```
-4. **Envie para a branch**:
-   ```bash
-   git push origin feature/NomeDaSuaFeature
-   ```
-5. **Abra um pull request**.
-
-Leia o arquivo [CONTRIBUTING.md](CONTRIBUTING.md) para mais detalhes.
+- [x] Integração com Webhook do Discord
+- [x] Monitoramento em tempo real
+- [x] Suporte a múltiplos idiomas (inglês e português)
+- [x] Backup de arquivos suspeitos
+- [x] Relatórios HTML interativos
+- [ ] Integração com a API do VirusTotal
+- [ ] Interface gráfica (GUI)
+- [ ] Suporte a mais tipos de arquivos
 
 ---
 
@@ -228,4 +211,5 @@ Este projeto está licenciado sob a licença MIT. Veja o arquivo [LICENSE](LICEN
 
 - **Yuri Braga**  
   [GitHub](https://github.com/yuribraga17)  
-  [Email](mailto:yuribraga17@example.com)  
+  [Email](mailto:yuribraga17@example.com)
+
