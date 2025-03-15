@@ -1,0 +1,8 @@
+{
+    "safe_keywords": [
+      "command(",
+      "PerformHttpRequest(Shared.DiscordWebhook",
+      "PerformHttpRequest(Config.DiscordWebhook",
+      "PerformHttpRequest(Config.Webhook"
+    ]
+  }
