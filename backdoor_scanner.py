@@ -3,13 +3,13 @@ import re
 import json
 import hashlib
 import requests
-import sqlite3
 import shutil
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk, scrolledtext
+from tkinter import ttk, filedialog, messagebox, scrolledtext
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from dotenv import load_dotenv
+from ttkthemes import ThemedTk
 
 # Carrega variáveis de ambiente
 load_dotenv()
@@ -43,40 +43,33 @@ def load_suspicious_patterns():
 
 PATTERNS = load_suspicious_patterns()
 
-# Dicionários de localização
-LOCALIZATION = {
-    "pt-br": {
-        "title": "Backdoor Scanner",
-        "select_directory": "Selecionar Diretório",
-        "scanning": "Escaneando...",
-        "malware_found": "🚨 Backdoor encontrado! Verifique 'scan_report.html' para detalhes.",
-        "no_malware": "✅ Nenhum malware encontrado.",
-        "error_directory": "Diretório não encontrado.",
-        "error_webhook": "Webhook do Discord inválido ou não configurado.",
-        "alert": "ALERTA",
-        "error": "ERRO",
-        "file_modified": "Arquivo modificado:",
-        "monitoring": "Monitorando diretório:",
-        "backup_created": "Backup criado:",
-        "email_sent": "E-mail enviado com sucesso.",
-        "hash_malicious": "Hash malicioso detectado:",
-        "obfuscation_detected": "Ofuscação detectada:",
-        "suspicious_behavior": "Comportamento suspeito detectado:",
-        "suspicious_pattern": "Padrão suspeito encontrado:",
-        "file": "Arquivo",
-        "line": "Linha",
-        "code": "Código suspeito",
-        "pattern": "Padrão Detectado",
-        "footer": f"Autor: {AUTHOR} | Github: {GITHUB_PROFILE}",
-    }
-}
-
-# Idioma padrão
-LANGUAGE = "pt-br"
-
-def translate(key):
-    """Retorna a mensagem traduzida com base no idioma selecionado."""
-    return LOCALIZATION[LANGUAGE].get(key, key)
+# Função para enviar notificações ao Discord
+def send_to_discord(file_path, line, pattern, malware_found):
+    """Envia uma notificação ao Discord em formato Embed."""
+    if DISCORD_WEBHOOK:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        embed = {
+            "title": "Backdoor Scanner",
+            "description": "Resultado da varredura",
+            "color": 0xFF0000 if malware_found else 0x00FF00,
+            "fields": [
+                {"name": "Arquivo", "value": file_path, "inline": False},
+                {"name": "Linha", "value": line, "inline": False},
+                {"name": "Padrão Detectado", "value": pattern, "inline": False},
+                {"name": "Status", "value": "Backdoor encontrado!" if malware_found else "Nenhum backdoor encontrado.", "inline": False},
+                {"name": "Data e Hora", "value": timestamp, "inline": False}
+            ],
+            "footer": {"text": f"Autor: {AUTHOR} | Github: {GITHUB_PROFILE}"}
+        }
+        message = {
+            "username": "Backdoor Scanner",
+            "avatar_url": AVATAR_URL,
+            "embeds": [embed]
+        }
+        try:
+            requests.post(DISCORD_WEBHOOK, json=message)
+        except Exception as e:
+            print(f"[ERRO] Falha ao enviar mensagem para o Discord: {e}")
 
 # Função para verificar hash com VirusTotal
 def check_hash_with_virustotal(file_hash):
@@ -88,9 +81,9 @@ def check_hash_with_virustotal(file_hash):
         if response.status_code == 200:
             result = response.json()
             if result["data"]["attributes"]["last_analysis_stats"]["malicious"] > 0:
-                return f"[{translate('alert')}] {translate('hash_malicious')} {file_hash}"
+                return f"[ALERTA] Hash malicioso detectado: {file_hash}"
     except Exception as e:
-        return f"[{translate('error')}] Falha ao verificar hash: {e}"
+        return f"[ERRO] Falha ao verificar hash: {e}"
     return None
 
 # Função para criar backup de arquivos suspeitos
@@ -113,7 +106,7 @@ def scan_file(file_path):
             # Verificação de hash
             file_hash = hashlib.sha256(content.encode()).hexdigest()
             if file_hash in MALICIOUS_HASHES:
-                log_entries.append(f"[{translate('alert')}] {translate('hash_malicious')} {file_hash} {translate('file')} {file_path}")
+                log_entries.append(f"[ALERTA] Hash malicioso detectado: {file_hash} no arquivo {file_path}")
                 create_backup(file_path)  # Cria backup do arquivo suspeito
             
             # Verificação com VirusTotal
@@ -128,15 +121,16 @@ def scan_file(file_path):
                 for match in matches:
                     line = content.splitlines()[content[:match.start()].count('\n')]
                     log_entry = (
-                        f"[{translate('alert')}] {translate('suspicious_pattern')}: {pattern}\n"
-                        f"{translate('file')}: {file_path}\n"
-                        f"{translate('line')}: {content[:match.start()].count('\n') + 1}\n"
-                        f"{translate('code')}: {line.strip()}\n"
+                        f"[ALERTA] Padrão suspeito encontrado: {pattern}\n"
+                        f"Arquivo: {file_path}\n"
+                        f"Linha: {content[:match.start()].count('\n') + 1}\n"
+                        f"Código: {line.strip()}\n"
                     )
                     log_entries.append(log_entry)
                     create_backup(file_path)  # Cria backup do arquivo suspeito
+                    send_to_discord(file_path, line, pattern, True)  # Envia notificação para o Discord
     except Exception as e:
-        return f"[{translate('error')}] Falha ao ler o arquivo {file_path}: {e}"
+        return f"[ERRO] Falha ao ler o arquivo {file_path}: {e}"
     return log_entries
 
 # Função para escanear múltiplos arquivos em paralelo
@@ -168,9 +162,9 @@ def scan_files_parallel(directory, progress_bar, log_area, root):
                 else:
                     error_entries.append(result)
             except Exception as e:
-                error_entries.append(f"[{translate('error')}] Falha ao escanear o arquivo {file}: {e}")
+                error_entries.append(f"[ERRO] Falha ao escanear o arquivo {file}: {e}")
 
-    generate_html_report(log_entries, error_entries, malware_found)
+    generate_html_report(log_entries, error_entries, malware_found, total_files, len(log_entries), total_files - len(log_entries))
     if error_entries:
         with open(ERROR_LOG, "w", encoding="utf-8") as error_log:
             error_log.write("[ERROS] Ocorreram erros durante a varredura:\n")
@@ -179,118 +173,124 @@ def scan_files_parallel(directory, progress_bar, log_area, root):
     return malware_found
 
 # Função para gerar relatório HTML
-def generate_html_report(log_entries, error_entries, malware_found):
+def generate_html_report(log_entries, error_entries, malware_found, total_files, suspicious_files, clean_files):
     """Gera um relatório HTML com os resultados da varredura."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Relatório de Varredura</title>
-        <!-- Bootstrap CSS -->
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-        <!-- Chart.js -->
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <style>
-            body { padding: 20px; }
-            .card { margin-bottom: 20px; }
-            .log-entry { margin-bottom: 10px; padding: 10px; border-left: 5px solid #ccc; }
-            .error-entry { margin-bottom: 10px; padding: 10px; border-left: 5px solid #ff0000; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1 class="text-center my-4">Relatório de Varredura</h1>
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Estatísticas</h5>
-                    <canvas id="scanChart"></canvas>
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Logs</h5>
-                    <div id="logs">
-                        <!-- Logs serão inseridos aqui -->
-                    </div>
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Erros</h5>
-                    <div id="errors">
-                        <!-- Erros serão inseridos aqui -->
-                    </div>
-                </div>
-            </div>
-            <footer class="text-center mt-4">
-                <p>Autor: {{ AUTHOR }} | Github: <a href="{{ GITHUB_PROFILE }}">{{ GITHUB_PROFILE }}</a></p>
-            </footer>
-        </div>
-
-        <script>
-            // Dados para o gráfico
-            const ctx = document.getElementById('scanChart').getContext('2d');
-            const scanChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['Arquivos Escaneados', 'Arquivos Suspeitos', 'Arquivos Limpos'],
-                    datasets: [{
-                        label: 'Estatísticas de Escaneamento',
-                        data: [{{ total_files }}, {{ suspicious_files }}, {{ clean_files }}],
-                        backgroundColor: ['#007bff', '#dc3545', '#28a745']
-                    }]
-                },
-                options: {
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
-                    }
-                }
-            });
-
-            // Adiciona logs e erros ao HTML
-            const logs = document.getElementById('logs');
-            const errors = document.getElementById('errors');
-
-            {% for entry in log_entries %}
-                logs.innerHTML += `<div class="log-entry">${"{{ entry }}"}</div>`;
-            {% endfor %}
-
-            {% for error in error_entries %}
-                errors.innerHTML += `<div class="error-entry">${"{{ error }}"}</div>`;
-            {% endfor %}
-        </script>
-    </body>
-    </html>
-    """
     with open(LOG_FILE, "w", encoding="utf-8") as log:
-        log.write(html_content)
+        log.write(f"""
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Relatório de Varredura</title>
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+            <style>
+                body.dark {{
+                    background-color: #121212;
+                    color: #ffffff;
+                }}
+                .dark .card {{
+                    background-color: #1e1e1e;
+                    border-color: #333;
+                }}
+                .dark .log-entry {{
+                    background-color: #2c2c2c;
+                    border-left: 5px solid #444;
+                    color: #ffffff;
+                }}
+                .dark .error-entry {{
+                    background-color: #3c1e1e;
+                    border-left: 5px solid #ff4444;
+                    color: #ffffff;
+                }}
+                .dark .btn-toggle {{
+                    background-color: #333;
+                    color: #ffffff;
+                }}
+            </style>
+        </head>
+        <body class="dark">
+            <div class="container">
+                <h1 class="text-center my-4">Relatório de Varredura</h1>
+                <button class="btn btn-toggle mb-3" onclick="toggleTheme()">Alternar Tema</button>
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Estatísticas</h5>
+                        <canvas id="scanChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Logs</h5>
+                        <div id="logs">
+                            {"".join(f'<div class="log-entry">{entry}</div>' for entry in log_entries)}
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Erros</h5>
+                        <div id="errors">
+                            {"".join(f'<div class="error-entry">{error}</div>' for error in error_entries)}
+                        </div>
+                    </div>
+                </div>
+                <footer class="text-center mt-4">
+                    <p>Autor: {AUTHOR} | Github: <a href="{GITHUB_PROFILE}">{GITHUB_PROFILE}</a></p>
+                </footer>
+            </div>
+            <script>
+                const ctx = document.getElementById('scanChart').getContext('2d');
+                const scanChart = new Chart(ctx, {{
+                    type: 'bar',
+                    data: {{
+                        labels: ['Arquivos Escaneados', 'Arquivos Suspeitos', 'Arquivos Limpos'],
+                        datasets: [{{
+                            label: 'Estatísticas de Escaneamento',
+                            data: [{total_files}, {suspicious_files}, {clean_files}],
+                            backgroundColor: ['#007bff', '#dc3545', '#28a745']
+                        }}]
+                    }},
+                    options: {{
+                        scales: {{
+                            y: {{
+                                beginAtZero: true
+                            }}
+                        }}
+                    }}
+                }});
 
-# Interface gráfica
+                function toggleTheme() {{
+                    document.body.classList.toggle('dark');
+                }}
+            </script>
+        </body>
+        </html>
+        """)
+
+# Interface gráfica moderna com tema dark
 def create_gui():
-    """Cria uma interface gráfica para o scanner."""
-    root = tk.Tk()
-    root.title(translate("title"))
-    root.geometry("800x600")
+    """Cria uma interface gráfica moderna para o scanner."""
+    root = ThemedTk(theme="black")  # Usa o tema "black" do ttkthemes
+    root.title("Backdoor Scanner")
+    root.geometry("1000x700")
 
     # Frame principal
-    main_frame = tk.Frame(root)
-    main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+    main_frame = ttk.Frame(root)
+    main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
     # Área de logs
-    log_area = scrolledtext.ScrolledText(main_frame, wrap=tk.WORD, width=80, height=20)
+    log_area = scrolledtext.ScrolledText(main_frame, wrap=tk.WORD, width=100, height=20, font=("Arial", 10), background="#1e1e1e", foreground="#ffffff")
     log_area.pack(fill=tk.BOTH, expand=True, pady=10)
 
     # Barra de progresso
-    progress_bar = ttk.Progressbar(main_frame, orient=tk.HORIZONTAL, length=400, mode="determinate")
+    progress_bar = ttk.Progressbar(main_frame, orient=tk.HORIZONTAL, length=800, mode="determinate")
     progress_bar.pack(pady=10)
 
     # Botões
-    button_frame = tk.Frame(main_frame)
+    button_frame = ttk.Frame(main_frame)
     button_frame.pack(pady=10)
 
     def start_scan():
@@ -299,14 +299,14 @@ def create_gui():
             log_area.insert(tk.END, f"[INFO] Escaneando diretório: {directory}\n")
             malware_found = scan_files_parallel(directory, progress_bar, log_area, root)
             if malware_found:
-                messagebox.showwarning(translate("alert"), translate("malware_found"))
+                messagebox.showwarning("ALERTA", "Backdoor encontrado! Verifique 'scan_report.html' para detalhes.")
             else:
-                messagebox.showinfo(translate("alert"), translate("no_malware"))
+                messagebox.showinfo("SUCESSO", "Nenhum malware encontrado.")
 
-    start_button = tk.Button(button_frame, text=translate("select_directory"), command=start_scan)
+    start_button = ttk.Button(button_frame, text="Selecionar Diretório", command=start_scan)
     start_button.pack(side=tk.LEFT, padx=5)
 
-    exit_button = tk.Button(button_frame, text="Sair", command=root.quit)
+    exit_button = ttk.Button(button_frame, text="Sair", command=root.quit)
     exit_button.pack(side=tk.LEFT, padx=5)
 
     root.mainloop()
