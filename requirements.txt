@@ -1,0 +1,16 @@
+requests
+python-dotenv
+tkinter
+pillow
+shutil
+hashlib
+json
+re
+threading
+concurrent.futures
+datetime
+os
+logging
+pathlib
+ttkthemes
+chart.js

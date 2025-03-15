@@ -23,7 +23,7 @@ VIRUSTOTAL_API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
 LANGUAGE = os.getenv("LANGUAGE", "pt-br")  # Idioma padrão: pt-br
 AUTHOR = "Yuri Braga"
 GITHUB_PROFILE = "https://github.com/yuribraga17"
-AVATAR_URL = "https://i.imgur.com/Io94kCm.jpeg"
+AVATAR_URL = "https://i.imgur.com/F0YFqjL.png"
 BACKUP_DIR = "backups"
 
 # Lista de hashes maliciosos conhecidos (exemplo)
