@@ -3,25 +3,27 @@ import re
 import json
 import hashlib
 import requests
-import smtplib
 import sqlite3
-import time
+import shutil
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk, scrolledtext
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
-from email.mime.text import MIMEText
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Carrega variáveis de ambiente
+load_dotenv()
 
 # Configurações
 LOG_FILE = "scan_report.html"
 ERROR_LOG = "error_log.html"
 SCAN_EXTENSIONS = [".lua", ".js", ".json", ".cfg", ".sql", ".txt", ".py", ".php", ".html"]
-DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1349765035294982154/sr-g1UT64_OIFhmC0OGSCWjb5ZFyhIM5Hu84fDB2D4ox4Jr9uae-JL1KyWrVZaoKRYv_"
+DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK")
+VIRUSTOTAL_API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
 AUTHOR = "Yuri Braga"
 GITHUB_PROFILE = "https://github.com/yuribraga17"
 AVATAR_URL = "https://i.imgur.com/Io94kCm.jpeg"
-VIRUSTOTAL_API_KEY = "d2452a7113afca74cdb07ad946fd081498c3301ab076a9760b62ef26ee29dfa2"
+BACKUP_DIR = "backups"
 
 # Lista de hashes maliciosos conhecidos (exemplo)
 MALICIOUS_HASHES = {
@@ -29,29 +31,17 @@ MALICIOUS_HASHES = {
     "d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2"
 }
 
-# Lista de padrões suspeitos (backdoor strings)
-PATTERNS = [
-    r"cipher-panel",
-    r"Enchanced_Tabs",
-    r"helperServer",
-    r"ketamin\.cc",
-    r"\x63\x69\x70\x68\x65\x72\x2d\x70\x61\x6e\x65\x6c\x2e\x6d\x65",
-    r"\x6b\x65\x74\x61\x6d\x69\x6e\x2e\x63\x63",
-    r"MpWxwQeLMRJaDFLKmxVIFNeVfzVKaTBiVRvjBoePYciqfpJzxjNPIXedbOtvIbpDxqdoJR",
-    r"yegScgjjdqJxajjEciirKPjVTDLrLPgTortCuhkITTKSrEAwzAFYeYHJbtwOKqgDNXIovf",
-    r"zvoUEAhbeuIUspwvFMqmZmxJcYQKDGlgCXvXHWcHHsOnttuqJHvRfxExcVuuenaPYaUDoS",
-    r"fzjrcOAVtqFkaAxWywpiwLojRAXpFyaqxYYWyYjryAVzoBtJpfHIgxdzkaVCestbWKSvuw",
-    r"QZqzNpxLlcExGPKnpVHAnCEeHRhcalmKugKhNKxmiLrkAtHsqlfRcwipMtdpyUYcFwOBEc",
-    r"UhBYcKlieqsXIFAeZKjhUPjCBVhjsiAePUBrdJCJWReeDOEmeJppTaDEpGFQQVzLFwZLSl",
-    r"zmpEqNeFCrmHDfAeEqpnhacxRABCXWPBITvcRaUnagoDzplRqrbUTMtArqBkLYOcuFjPwb",
-    r"yNFQacnrOUrYkjgbmlNiQASimwTmGijAqrsAnImrFdzlKAOiMsBHfsUkTSXQbXunaCtEdr",
-    r"wPYBfzhUSeDCaVfBScIzFvHbIfnIqgJvCcxlXqfQydKpbjqvYwVHUAcYchsyrvvvFsKeUc",
-    r"\x52\x65\x67\x69\x73\x74\x65\x72\x4e\x65\x74\x45\x76\x65\x6e\x74",
-    r"\x52\x65\x67",
-    r"tzCAyogCumAjjWRyUfjqMFmQuSCatkjdngxSidpiGRYBiqosQSJvmTWMhfExvRRkQUxXPf",
-    r"\x50\x65\x72",
-    r"Enchanced_Tabs"
-]
+# Lista de padrões suspeitos (carregados de um arquivo externo)
+def load_suspicious_patterns():
+    """Carrega padrões suspeitos de um arquivo JSON."""
+    try:
+        with open("suspicious_patterns.json", "r") as f:
+            return json.load(f).get("patterns", [])
+    except Exception as e:
+        print(f"[ERRO] Falha ao carregar padrões suspeitos: {e}")
+        return []
+
+PATTERNS = load_suspicious_patterns()
 
 # Dicionários de localização
 LOCALIZATION = {
@@ -78,30 +68,6 @@ LOCALIZATION = {
         "code": "Código suspeito",
         "pattern": "Padrão Detectado",
         "footer": f"Autor: {AUTHOR} | Github: {GITHUB_PROFILE}",
-    },
-    "en": {
-        "title": "Backdoor Scanner",
-        "select_directory": "Select Directory",
-        "scanning": "Scanning...",
-        "malware_found": "🚨 Backdoor found! Check 'scan_report.html' for details.",
-        "no_malware": "✅ No malware found.",
-        "error_directory": "Directory not found.",
-        "error_webhook": "Invalid or unconfigured Discord webhook.",
-        "alert": "ALERT",
-        "error": "ERROR",
-        "file_modified": "File modified:",
-        "monitoring": "Monitoring directory:",
-        "backup_created": "Backup created:",
-        "email_sent": "Email sent successfully.",
-        "hash_malicious": "Malicious hash detected:",
-        "obfuscation_detected": "Obfuscation detected:",
-        "suspicious_behavior": "Suspicious behavior detected:",
-        "suspicious_pattern": "Suspicious pattern found:",
-        "file": "File",
-        "line": "Line",
-        "code": "Suspicious Code",
-        "pattern": "Pattern Detected",
-        "footer": f"Author: {AUTHOR} | Github: {GITHUB_PROFILE}",
     }
 }
 
@@ -127,179 +93,16 @@ def check_hash_with_virustotal(file_hash):
         return f"[{translate('error')}] Falha ao verificar hash: {e}"
     return None
 
-# Função para detectar ofuscação
-def detect_obfuscation(content):
-    """Detecta ofuscação no código."""
-    # Verifica se há strings codificadas em hexadecimal
-    hex_pattern = r"\\x[0-9a-fA-F]{2}"
-    if re.search(hex_pattern, content):
-        return f"[{translate('alert')}] {translate('obfuscation_detected')} (hexadecimal)"
+# Função para criar backup de arquivos suspeitos
+def create_backup(file_path):
+    """Cria um backup de um arquivo suspeito."""
+    if not os.path.exists(BACKUP_DIR):
+        os.makedirs(BACKUP_DIR)
+    backup_path = os.path.join(BACKUP_DIR, os.path.basename(file_path))
+    shutil.copy(file_path, backup_path)
+    return backup_path
 
-    # Verifica se há strings codificadas em base64
-    base64_pattern = r"(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?"
-    if re.search(base64_pattern, content):
-        return f"[{translate('alert')}] {translate('obfuscation_detected')} (base64)"
-
-    return None
-
-# Função para analisar comportamento suspeito
-def analyze_behavior(content):
-    """Analisa o comportamento do código."""
-    # Exemplo: Verifica se há chamadas suspeitas de execução de código
-    suspicious_calls = ["eval(", "exec(", "system(", "PerformHttpRequest(", "GetConvar("]
-    for call in suspicious_calls:
-        if call in content:
-            return f"[{translate('alert')}] {translate('suspicious_behavior')}: {call}"
-    return None
-
-# Função para enviar notificações ao Discord em Embed
-def send_to_discord(file_path, line, pattern, malware_found):
-    """Envia uma notificação ao Discord em formato Embed."""
-    if DISCORD_WEBHOOK:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        embed = {
-            "title": "Backdoor Scanner",
-            "description": "Resultado da varredura",
-            "color": 0xFF0000 if malware_found else 0x00FF00,
-            "fields": [
-                {"name": "Arquivo", "value": file_path, "inline": False},
-                {"name": "Linha", "value": line, "inline": False},
-                {"name": "Padrão Detectado", "value": pattern, "inline": False},
-                {"name": "Status", "value": "Backdoor encontrado!" if malware_found else "Nenhum backdoor encontrado.", "inline": False},
-                {"name": "Data e Hora", "value": timestamp, "inline": False}
-            ],
-            "footer": {"text": f"Autor: {AUTHOR} | Github: {GITHUB_PROFILE}"}
-        }
-        message = {
-            "username": "Backdoor Scanner",
-            "avatar_url": AVATAR_URL,
-            "embeds": [embed]
-        }
-        try:
-            requests.post(DISCORD_WEBHOOK, json=message)
-        except Exception as e:
-            print(f"[{translate('error')}] Falha ao enviar mensagem para o Discord: {e}")
-
-# Função para gerar relatório HTML
-def generate_html_report(log_entries, error_entries, malware_found):
-    """Gera um relatório HTML com os resultados da varredura."""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Relatório de Varredura</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; margin: 20px; }}
-            h1 {{ color: #333; }}
-            .log-entry {{ margin-bottom: 20px; padding: 10px; border-left: 5px solid #ccc; }}
-            .error-entry {{ margin-bottom: 20px; padding: 10px; border-left: 5px solid #ff0000; }}
-            .footer {{ margin-top: 40px; font-size: 0.9em; color: #666; }}
-        </style>
-    </head>
-    <body>
-        <h1>Relatório de Varredura</h1>
-        <p><strong>Data e Hora:</strong> {timestamp}</p>
-        <p><strong>Resultado:</strong> {"Backdoor encontrado!" if malware_found else "Nenhum backdoor encontrado."}</p>
-        <h2>Logs</h2>
-    """
-    for entry in log_entries:
-        html_content += f'<div class="log-entry">{entry}</div>'
-    if error_entries:
-        html_content += "<h2>Erros</h2>"
-        for error in error_entries:
-            html_content += f'<div class="error-entry">{error}</div>'
-    html_content += f"""
-        <div class="footer">
-            <p>Autor: {AUTHOR} | Github: <a href="{GITHUB_PROFILE}">{GITHUB_PROFILE}</a></p>
-        </div>
-    </body>
-    </html>
-    """
-    with open(LOG_FILE, "w", encoding="utf-8") as log:
-        log.write(html_content)
-
-# Função para gerar HTML do banco de dados
-def generate_db_html():
-    """Gera um arquivo HTML para visualizar os resultados do banco de dados."""
-    conn = sqlite3.connect("scan_results.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM results")
-    rows = cursor.fetchall()
-    conn.close()
-
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Resultados do Banco de Dados</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; margin: 20px; }}
-            h1 {{ color: #333; }}
-            table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-            th, td {{ padding: 10px; border: 1px solid #ccc; text-align: left; }}
-            th {{ background-color: #f4f4f4; }}
-        </style>
-    </head>
-    <body>
-        <h1>Resultados do Banco de Dados</h1>
-        <table>
-            <tr>
-                <th>ID</th>
-                <th>Arquivo</th>
-                <th>Padrão</th>
-                <th>Data e Hora</th>
-            </tr>
-    """
-    for row in rows:
-        html_content += f"""
-            <tr>
-                <td>{row[0]}</td>
-                <td>{row[1]}</td>
-                <td>{row[2]}</td>
-                <td>{row[3]}</td>
-            </tr>
-        """
-    html_content += """
-        </table>
-    </body>
-    </html>
-    """
-    with open("db_results.html", "w", encoding="utf-8") as file:
-        file.write(html_content)
-
-# Banco de dados de resultados
-def create_database():
-    """Cria um banco de dados para armazenar resultados."""
-    conn = sqlite3.connect("scan_results.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS results (
-            id INTEGER PRIMARY KEY,
-            file_path TEXT,
-            pattern TEXT,
-            timestamp DATETIME
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-def save_result(file_path, pattern):
-    """Salva um resultado no banco de dados."""
-    conn = sqlite3.connect("scan_results.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO results (file_path, pattern, timestamp)
-        VALUES (?, ?, datetime('now'))
-    """, (file_path, pattern))
-    conn.commit()
-    conn.close()
-
-# Função principal de escaneamento
+# Função para escanear um arquivo
 def scan_file(file_path):
     """Escaneia um arquivo em busca de padrões suspeitos."""
     log_entries = []
@@ -311,21 +114,13 @@ def scan_file(file_path):
             file_hash = hashlib.sha256(content.encode()).hexdigest()
             if file_hash in MALICIOUS_HASHES:
                 log_entries.append(f"[{translate('alert')}] {translate('hash_malicious')} {file_hash} {translate('file')} {file_path}")
+                create_backup(file_path)  # Cria backup do arquivo suspeito
             
             # Verificação com VirusTotal
             virustotal_result = check_hash_with_virustotal(file_hash)
             if virustotal_result:
                 log_entries.append(virustotal_result)
-            
-            # Detecção de ofuscação
-            obfuscation_result = detect_obfuscation(content)
-            if obfuscation_result:
-                log_entries.append(obfuscation_result)
-            
-            # Análise de comportamento
-            behavior_result = analyze_behavior(content)
-            if behavior_result:
-                log_entries.append(behavior_result)
+                create_backup(file_path)  # Cria backup do arquivo suspeito
             
             # Verificação de padrões suspeitos
             for pattern in PATTERNS:
@@ -339,58 +134,141 @@ def scan_file(file_path):
                         f"{translate('code')}: {line.strip()}\n"
                     )
                     log_entries.append(log_entry)
-                    save_result(file_path, pattern)
-                    send_to_discord(file_path, line, pattern, True)
+                    create_backup(file_path)  # Cria backup do arquivo suspeito
     except Exception as e:
         return f"[{translate('error')}] Falha ao ler o arquivo {file_path}: {e}"
     return log_entries
 
-# Função para escanear múltiplos arquivos
-def scan_files(directory, progress_bar, log_area, root):
-    """Escaneia todos os arquivos em um diretório."""
+# Função para escanear múltiplos arquivos em paralelo
+def scan_files_parallel(directory, progress_bar, log_area, root):
+    """Escaneia todos os arquivos em um diretório usando threads."""
     malware_found = False
     log_entries = []
     error_entries = []
 
-    # Contador de arquivos escaneados
-    total_files = 0
-    scanned_files = 0
-
-    # Contar o número total de arquivos
+    files_to_scan = []
     for root_dir, _, files in os.walk(directory):
         for file in files:
             if any(file.endswith(ext) for ext in SCAN_EXTENSIONS):
-                total_files += 1
+                files_to_scan.append(os.path.join(root_dir, file))
 
+    total_files = len(files_to_scan)
     log_area.insert(tk.END, f"[INFO] Total de arquivos a serem escaneados: {total_files}\n")
 
-    # Escanear os arquivos
-    for root_dir, _, files in os.walk(directory):
-        for file in files:
-            if any(file.endswith(ext) for ext in SCAN_EXTENSIONS):
-                file_path = os.path.join(root_dir, file)
-                scanned_files += 1
-                log_area.insert(tk.END, f"[INFO] Escaneando arquivo {scanned_files}/{total_files}: {file_path}\n")
-                progress_bar["value"] = (scanned_files / total_files) * 100
-                root.update_idletasks()  # Atualiza a barra de progresso
-
-                result = scan_file(file_path)
+    with ThreadPoolExecutor() as executor:
+        futures = {executor.submit(scan_file, file): file for file in files_to_scan}
+        for future in as_completed(futures):
+            file = futures[future]
+            try:
+                result = future.result()
                 if isinstance(result, list):
                     log_entries.extend(result)
                     if result:
                         malware_found = True
                 else:
                     error_entries.append(result)
+            except Exception as e:
+                error_entries.append(f"[{translate('error')}] Falha ao escanear o arquivo {file}: {e}")
 
-    # Salva os logs
     generate_html_report(log_entries, error_entries, malware_found)
-
     if error_entries:
         with open(ERROR_LOG, "w", encoding="utf-8") as error_log:
             error_log.write("[ERROS] Ocorreram erros durante a varredura:\n")
             error_log.write("\n".join(error_entries))
 
     return malware_found
+
+# Função para gerar relatório HTML
+def generate_html_report(log_entries, error_entries, malware_found):
+    """Gera um relatório HTML com os resultados da varredura."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Relatório de Varredura</title>
+        <!-- Bootstrap CSS -->
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+        <!-- Chart.js -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+            body { padding: 20px; }
+            .card { margin-bottom: 20px; }
+            .log-entry { margin-bottom: 10px; padding: 10px; border-left: 5px solid #ccc; }
+            .error-entry { margin-bottom: 10px; padding: 10px; border-left: 5px solid #ff0000; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1 class="text-center my-4">Relatório de Varredura</h1>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Estatísticas</h5>
+                    <canvas id="scanChart"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Logs</h5>
+                    <div id="logs">
+                        <!-- Logs serão inseridos aqui -->
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Erros</h5>
+                    <div id="errors">
+                        <!-- Erros serão inseridos aqui -->
+                    </div>
+                </div>
+            </div>
+            <footer class="text-center mt-4">
+                <p>Autor: {{ AUTHOR }} | Github: <a href="{{ GITHUB_PROFILE }}">{{ GITHUB_PROFILE }}</a></p>
+            </footer>
+        </div>
+
+        <script>
+            // Dados para o gráfico
+            const ctx = document.getElementById('scanChart').getContext('2d');
+            const scanChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Arquivos Escaneados', 'Arquivos Suspeitos', 'Arquivos Limpos'],
+                    datasets: [{
+                        label: 'Estatísticas de Escaneamento',
+                        data: [{{ total_files }}, {{ suspicious_files }}, {{ clean_files }}],
+                        backgroundColor: ['#007bff', '#dc3545', '#28a745']
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // Adiciona logs e erros ao HTML
+            const logs = document.getElementById('logs');
+            const errors = document.getElementById('errors');
+
+            {% for entry in log_entries %}
+                logs.innerHTML += `<div class="log-entry">${"{{ entry }}"}</div>`;
+            {% endfor %}
+
+            {% for error in error_entries %}
+                errors.innerHTML += `<div class="error-entry">${"{{ error }}"}</div>`;
+            {% endfor %}
+        </script>
+    </body>
+    </html>
+    """
+    with open(LOG_FILE, "w", encoding="utf-8") as log:
+        log.write(html_content)
 
 # Interface gráfica
 def create_gui():
@@ -419,7 +297,7 @@ def create_gui():
         directory = filedialog.askdirectory()
         if directory:
             log_area.insert(tk.END, f"[INFO] Escaneando diretório: {directory}\n")
-            malware_found = scan_files(directory, progress_bar, log_area, root)  # Passando root como argumento
+            malware_found = scan_files_parallel(directory, progress_bar, log_area, root)
             if malware_found:
                 messagebox.showwarning(translate("alert"), translate("malware_found"))
             else:
@@ -435,7 +313,6 @@ def create_gui():
 
 # Função principal
 def main():
-    create_database()
     create_gui()
 
 if __name__ == "__main__":
